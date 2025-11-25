@@ -2,17 +2,49 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { prisma } from '../../../lib/prisma'
 
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return h * 60 + m
-}
-
-function minutesFromMidnight(date: Date): number {
-  return date.getHours() * 60 + date.getMinutes()
-}
+/**
+ * Usamos horário de São Paulo (UTC-3) para:
+ * - interpretar a data (YYYY-MM-DD) enviada pelo cliente
+ * - gerar os slots
+ * - verificar conflitos com bloqueios e agendamentos
+ */
+const SAO_PAULO_OFFSET_MINUTES = 3 * 60
+const OFFSET_MS = SAO_PAULO_OFFSET_MINUTES * 60 * 1000
 
 function intervalsOverlap(startA: number, endA: number, startB: number, endB: number): boolean {
   return startA < endB && endA > startB
+}
+
+// Converte um Date em UTC para "minutos desde meia-noite" em horário de São Paulo
+function saoPauloMinutesFromMidnight(dateUtc: Date): number {
+  const localMs = dateUtc.getTime() - OFFSET_MS
+  const d = new Date(localMs)
+  return d.getUTCHours() * 60 + d.getUTCMinutes()
+}
+
+// Dado uma string YYYY-MM-DD (data local SP), retorna o range [startUtc, endUtc)
+function getSaoPauloDayRangeFromLocalDate(dateStr: string): { dayStartUtc: Date; dayEndUtc: Date; weekday: number } {
+  const [yearStr, monthStr, dayStr] = dateStr.split('-')
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+  const day = Number(dayStr)
+
+  if (!year || !month || !day) {
+    throw new Error('Invalid date string')
+  }
+
+  // Tratamos essa data como "00:00 em São Paulo"
+  // Primeiro criamos um timestamp "local" baseado em UTC:
+  const localStartMs = Date.UTC(year, month - 1, day, 0, 0, 0)
+  // Depois convertemos para UTC real adicionando o offset (UTC = local + 3h)
+  const dayStartUtc = new Date(localStartMs + OFFSET_MS)
+  const dayEndUtc = new Date(dayStartUtc.getTime() + 24 * 60 * 60 * 1000)
+
+  // Dia da semana em São Paulo (mesmo da data local)
+  const localDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0))
+  const weekday = localDate.getUTCDay() // 0 = domingo ... 6 = sábado
+
+  return { dayStartUtc, dayEndUtc, weekday }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -24,12 +56,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { providerId, date, serviceId } = req.query
 
   if (!providerId || !date || !serviceId) {
-    return res.status(400).json({ error: 'providerId, date (YYYY-MM-DD) and serviceId are required' })
+    return res
+      .status(400)
+      .json({ error: 'providerId, date (YYYY-MM-DD) and serviceId are required' })
   }
 
   const provider = await prisma.user.findUnique({
     where: { id: String(providerId) },
-    select: { id: true, isProvider: true },
+    select: { id: true, isProvider: true, maxBookingDays: true },
   })
   if (!provider || !provider.isProvider) {
     return res.status(404).json({ error: 'Provider not found' })
@@ -42,52 +76,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(404).json({ error: 'Service not found for this provider' })
   }
 
-  const duration = service.duration // minutes
+  const duration = service.duration // minutos
 
-  const dayString = String(date)
-  const dayStart = new Date(`${dayString}T00:00:00.000Z`)
-  if (Number.isNaN(dayStart.getTime())) {
-    return res.status(400).json({ error: 'Invalid date format' })
+  let dayStartUtc: Date
+  let dayEndUtc: Date
+  let weekday: number
+  try {
+    const range = getSaoPauloDayRangeFromLocalDate(String(date))
+    dayStartUtc = range.dayStartUtc
+    dayEndUtc = range.dayEndUtc
+    weekday = range.weekday
+  } catch {
+    return res.status(400).json({ error: 'Invalid date format (expected YYYY-MM-DD)' })
   }
-  const dayEnd = new Date(dayStart)
-  dayEnd.setDate(dayEnd.getDate() + 1)
 
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  // Regra de limite de agendamento (maxBookingDays) em dias locais de SP
+  const nowUtc = new Date()
+  const localNowMs = nowUtc.getTime() - OFFSET_MS
+  const localDayNow = Math.floor(localNowMs / (24 * 60 * 60 * 1000))
+
+  const midPointOfDayMs = dayStartUtc.getTime() - OFFSET_MS + 12 * 60 * 60 * 1000 // meio-dia local
+  const localDayTarget = Math.floor(midPointOfDayMs / (24 * 60 * 60 * 1000))
+
+  const diffDays = localDayTarget - localDayNow
   const maxDays = provider.maxBookingDays ?? 7
-  const maxDate = new Date(today)
-  maxDate.setDate(maxDate.getDate() + maxDays)
 
-  if (dayEnd <= today) {
+  if (diffDays < 0) {
     return res.status(400).json({ error: 'Cannot book past dates' })
   }
-
-  if (dayStart > maxDate) {
-    return res.status(400).json({ error: `Cannot book more than ${maxDays} days in advance` })
+  if (diffDays > maxDays) {
+    return res
+      .status(400)
+      .json({ error: `Cannot book more than ${maxDays} days in advance` })
   }
 
-  const weekday = dayStart.getUTCDay()
-
-  // Disponibilidades do dia da semana
+  // Disponibilidades do dia da semana (em São Paulo)
   const availabilities = await prisma.providerAvailability.findMany({
     where: { providerId: provider.id, weekday },
     orderBy: { startTime: 'asc' },
   })
 
-  // Bloqueios que pegam esse dia
+  // Bloqueios que pegam esse dia (salvos em UTC)
   const blocks = await prisma.providerBlock.findMany({
     where: {
       providerId: provider.id,
-      startAt: { lt: dayEnd },
-      endAt: { gt: dayStart },
+      startAt: { lt: dayEndUtc },
+      endAt: { gt: dayStartUtc },
     },
   })
 
-  // Appointments já marcados nesse dia
+  // Appointments já marcados nesse dia (salvos em UTC)
   const appointments = await prisma.appointment.findMany({
     where: {
       providerId: provider.id,
-      date: { gte: dayStart, lt: dayEnd },
+      date: { gte: dayStartUtc, lt: dayEndUtc },
       status: { not: 'CANCELLED' },
     },
     include: {
@@ -97,35 +139,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const availableSlots: string[] = []
 
+  // Itera pelas janelas de disponibilidade
   for (const av of availabilities) {
-    const windowStartMin = timeToMinutes(av.startTime)
-    const windowEndMin = timeToMinutes(av.endTime)
+    const [startHourStr, startMinStr] = av.startTime.split(':')
+    const [endHourStr, endMinStr] = av.endTime.split(':')
+
+    const windowStartMin = Number(startHourStr) * 60 + Number(startMinStr)
+    const windowEndMin = Number(endHourStr) * 60 + Number(endMinStr)
+
+    if (
+      Number.isNaN(windowStartMin) ||
+      Number.isNaN(windowEndMin) ||
+      windowEndMin <= windowStartMin
+    ) {
+      continue
+    }
 
     for (let slotStart = windowStartMin; slotStart + duration <= windowEndMin; slotStart += duration) {
       const slotEnd = slotStart + duration
 
-      // Verifica bloqueios
+      // 1) Verifica bloqueios
       const blocked = blocks.some(block => {
-        const blockStartMin = minutesFromMidnight(block.startAt)
-        const blockEndMin = minutesFromMidnight(block.endAt)
+        const blockStartMin = saoPauloMinutesFromMidnight(block.startAt)
+        const blockEndMin = saoPauloMinutesFromMidnight(block.endAt)
         return intervalsOverlap(slotStart, slotEnd, blockStartMin, blockEndMin)
       })
       if (blocked) continue
 
-      // Verifica conflitos com outros appointments
+      // 2) Verifica conflitos com outros appointments
       const conflict = appointments.some(appt => {
         const apptDuration = appt.service?.duration ?? duration
-        const apptStartMin = minutesFromMidnight(appt.date)
+        const apptStartMin = saoPauloMinutesFromMidnight(appt.date)
         const apptEndMin = apptStartMin + apptDuration
         return intervalsOverlap(slotStart, slotEnd, apptStartMin, apptEndMin)
       })
       if (conflict) continue
 
-      // Monta Date do slot
-      const slotDate = new Date(dayStart)
-      // Usando horário "local" do servidor; isso pode não bater 100% com timezone real, mas serve bem pro MVP.
-      slotDate.setHours(Math.floor(slotStart / 60), slotStart % 60, 0, 0)
-      availableSlots.push(slotDate.toISOString())
+      // 3) Monta o Date UTC do slot com base na data local de SP
+      const [yearStr, monthStr, dayStr] = String(date).split('-')
+      const year = Number(yearStr)
+      const month = Number(monthStr)
+      const day = Number(dayStr)
+
+      const hour = Math.floor(slotStart / 60)
+      const minute = slotStart % 60
+
+      // timestamp local SP (mas construído via UTC numérico)
+      const localSlotMs = Date.UTC(year, month - 1, day, hour, minute, 0)
+      // converte para UTC real (UTC = local + offset)
+      const utcSlot = new Date(localSlotMs + OFFSET_MS)
+
+      availableSlots.push(utcSlot.toISOString())
     }
   }
 
