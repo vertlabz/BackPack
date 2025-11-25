@@ -23,7 +23,7 @@ export default requireAuth(async (req: NextApiRequest & { user?: { userId: strin
     return res.status(200).json({ availabilities })
   }
 
-  if (req.method === 'POST') {
+    if (req.method === 'POST') {
     const { weekday, startTime, endTime } = req.body ?? {}
 
     if (weekday === undefined || startTime == null || endTime == null) {
@@ -35,7 +35,16 @@ export default requireAuth(async (req: NextApiRequest & { user?: { userId: strin
       return res.status(400).json({ error: 'weekday must be between 0 and 6' })
     }
 
-    // Não estou checando overlap de disponibilidade, mas dá pra adicionar depois
+    // ⬇️ NOVO: não permitir duas disponibilidades no mesmo dia
+    const existing = await prisma.providerAvailability.findFirst({
+      where: { providerId: user.id, weekday: w },
+    })
+    if (existing) {
+      return res
+        .status(400)
+        .json({ error: 'Já existe disponibilidade cadastrada para esse dia. Apague antes de criar outra.' })
+    }
+
     const created = await prisma.providerAvailability.create({
       data: {
         providerId: user.id,
@@ -47,6 +56,7 @@ export default requireAuth(async (req: NextApiRequest & { user?: { userId: strin
 
     return res.status(201).json({ availability: created })
   }
+
 
   res.setHeader('Allow', 'GET, POST')
   return res.status(405).end()

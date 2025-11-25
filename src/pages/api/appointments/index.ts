@@ -34,10 +34,30 @@ export default requireAuth(async (req: NextApiRequest & { user?: { userId: strin
     }
 
     // provider existe e é provider?
-    const provider = await prisma.user.findUnique({ where: { id: providerId } })
-    if (!provider || !provider.isProvider) {
-      return res.status(404).json({ error: 'Provider not found' })
-    }
+    const provider = await prisma.user.findUnique({
+  where: { id: providerId },
+  select: { id: true, isProvider: true, maxBookingDays: true },
+})
+if (!provider || !provider.isProvider) {
+  return res.status(404).json({ error: 'Provider not found' })
+}
+
+// ⬇️ NOVO: regra de limite
+const now = new Date()
+const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+const maxDays = provider.maxBookingDays ?? 7
+const maxDate = new Date(today)
+maxDate.setDate(maxDate.getDate() + maxDays)
+
+if (appointmentDate < today) {
+  return res.status(400).json({ error: 'Cannot book in the past' })
+}
+if (appointmentDate > maxDate) {
+  return res
+    .status(400)
+    .json({ error: `Cannot book more than ${maxDays} days in advance` })
+}
+
 
     // bloqueio do provider
     const block = await prisma.providerBlock.findFirst({

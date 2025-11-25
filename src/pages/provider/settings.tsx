@@ -21,6 +21,11 @@ export default function ProviderSettingsPage() {
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [token, setToken] = useState<string | null>(null)
 
+  // Limite de agendamento (maxBookingDays)
+  const [maxBookingDays, setMaxBookingDays] = useState<number>(7)
+  const [bookingLimitMessage, setBookingLimitMessage] = useState('')
+  const [bookingLimitError, setBookingLimitError] = useState('')
+
   // Serviços
   const [services, setServices] = useState<Service[]>([])
   const [servicesLoading, setServicesLoading] = useState(false)
@@ -91,6 +96,53 @@ export default function ProviderSettingsPage() {
 
     loadServices()
   }, [token, user])
+
+  // Carrega configuração de maxBookingDays
+  useEffect(() => {
+    if (!token || !user) return
+
+    async function loadConfig() {
+      setBookingLimitError('')
+      try {
+        const res = await fetch('/api/provider/config', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setBookingLimitError(data.error || data.message || 'Erro ao carregar configuração')
+        } else {
+          setMaxBookingDays(data.maxBookingDays ?? 7)
+        }
+      } catch {
+        setBookingLimitError('Erro de rede ao carregar configuração')
+      }
+    }
+
+    loadConfig()
+  }, [token, user])
+
+  async function handleSaveBookingLimit() {
+    if (!token) return
+    setBookingLimitMessage('')
+    setBookingLimitError('')
+
+    const res = await fetch('/api/provider/config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ maxBookingDays }),
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      setBookingLimitError(data.error || data.message || 'Erro ao salvar configuração')
+      return
+    }
+
+    setBookingLimitMessage('Limite de agendamento atualizado!')
+  }
 
   async function handleCreateService() {
     if (!token) return
@@ -176,6 +228,35 @@ export default function ProviderSettingsPage() {
     <div style={{ maxWidth: 900, margin: '40px auto', fontFamily: 'sans-serif' }}>
       <h1>Configurações do Barbeiro</h1>
       <p>Olá, {user.name}</p>
+
+      {/* Seção Limite de Agendamento */}
+      <section style={{ marginBottom: 32 }}>
+        <h2>Limite de agendamento</h2>
+        <p style={{ fontSize: 12, color: '#555' }}>
+          Define quantos dias à frente os clientes podem agendar. Padrão: 7 dias.
+        </p>
+        <div>
+          <label>
+            Máximo de dias à frente:{' '}
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={maxBookingDays}
+              onChange={e => setMaxBookingDays(Number(e.target.value))}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={handleSaveBookingLimit}
+            style={{ marginLeft: 8 }}
+          >
+            Salvar
+          </button>
+        </div>
+        {bookingLimitError && <p style={{ color: 'red' }}>{bookingLimitError}</p>}
+        {bookingLimitMessage && <p style={{ color: 'green' }}>{bookingLimitMessage}</p>}
+      </section>
 
       {/* Seção Serviços */}
       <section style={{ marginBottom: 32 }}>

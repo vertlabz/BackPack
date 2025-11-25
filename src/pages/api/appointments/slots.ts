@@ -52,7 +52,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const dayEnd = new Date(dayStart)
   dayEnd.setDate(dayEnd.getDate() + 1)
 
-  const weekday = dayStart.getUTCDay() // 0-6
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const maxDays = provider.maxBookingDays ?? 7
+  const maxDate = new Date(today)
+  maxDate.setDate(maxDate.getDate() + maxDays)
+
+  if (dayEnd <= today) {
+    return res.status(400).json({ error: 'Cannot book past dates' })
+  }
+
+  if (dayStart > maxDate) {
+    return res.status(400).json({ error: `Cannot book more than ${maxDays} days in advance` })
+  }
+
+  const weekday = dayStart.getUTCDay()
 
   // Disponibilidades do dia da semana
   const availabilities = await prisma.providerAvailability.findMany({
