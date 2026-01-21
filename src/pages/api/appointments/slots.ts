@@ -1,51 +1,17 @@
 // src/pages/api/appointments/slots.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { prisma } from '../../../lib/prisma'
-
-/**
- * Usamos horário de São Paulo (UTC-3) para:
- * - interpretar a data (YYYY-MM-DD) enviada pelo cliente
- * - gerar os slots
- * - verificar conflitos com bloqueios e agendamentos
- */
-const SAO_PAULO_OFFSET_MINUTES = 3 * 60
-const OFFSET_MS = SAO_PAULO_OFFSET_MINUTES * 60 * 1000
+import {
+  getSaoPauloDayRangeFromLocalDate,
+  saoPauloMinutesFromMidnight,
+  OFFSET_MS,
+} from '../../../lib/saoPauloTime'
 
 function intervalsOverlap(startA: number, endA: number, startB: number, endB: number): boolean {
   return startA < endB && endA > startB
 }
 
-// Converte um Date em UTC para "minutos desde meia-noite" em horário de São Paulo
-function saoPauloMinutesFromMidnight(dateUtc: Date): number {
-  const localMs = dateUtc.getTime() - OFFSET_MS
-  const d = new Date(localMs)
-  return d.getUTCHours() * 60 + d.getUTCMinutes()
-}
-
-// Dado uma string YYYY-MM-DD (data local SP), retorna o range [startUtc, endUtc)
-function getSaoPauloDayRangeFromLocalDate(dateStr: string): { dayStartUtc: Date; dayEndUtc: Date; weekday: number } {
-  const [yearStr, monthStr, dayStr] = dateStr.split('-')
-  const year = Number(yearStr)
-  const month = Number(monthStr)
-  const day = Number(dayStr)
-
-  if (!year || !month || !day) {
-    throw new Error('Invalid date string')
-  }
-
-  // Tratamos essa data como "00:00 em São Paulo"
-  // Primeiro criamos um timestamp "local" baseado em UTC:
-  const localStartMs = Date.UTC(year, month - 1, day, 0, 0, 0)
-  // Depois convertemos para UTC real adicionando o offset (UTC = local + 3h)
-  const dayStartUtc = new Date(localStartMs + OFFSET_MS)
-  const dayEndUtc = new Date(dayStartUtc.getTime() + 24 * 60 * 60 * 1000)
-
-  // Dia da semana em São Paulo (mesmo da data local)
-  const localDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0))
-  const weekday = localDate.getUTCDay() // 0 = domingo ... 6 = sábado
-
-  return { dayStartUtc, dayEndUtc, weekday }
-}
+// helpers moved to src/lib/saoPauloTime.ts
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
