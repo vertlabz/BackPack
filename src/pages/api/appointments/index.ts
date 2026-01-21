@@ -30,18 +30,21 @@ function saoPauloDiffInDaysFromNow(targetUtc: Date): number {
 }
 
 // Retorna o range [startUtc, endUtc) do dia de São Paulo correspondente a uma data UTC
-function getSaoPauloDayRangeFromUtc(dateUtc: Date): { dayStartUtc: Date; dayEndUtc: Date } {
+function getSaoPauloDayRangeFromUtc(
+  dateUtc: Date
+): { dayStartUtc: Date; dayEndUtc: Date; weekday: number } {
   const localMs = dateUtc.getTime() - OFFSET_MS
   const d = new Date(localMs)
   const year = d.getUTCFullYear()
   const month = d.getUTCMonth()
   const day = d.getUTCDate()
+  const weekday = d.getUTCDay()
 
   const localStartMs = Date.UTC(year, month, day, 0, 0, 0)
   const dayStartUtc = new Date(localStartMs + OFFSET_MS)
   const dayEndUtc = new Date(dayStartUtc.getTime() + 24 * 60 * 60 * 1000)
 
-  return { dayStartUtc, dayEndUtc }
+  return { dayStartUtc, dayEndUtc, weekday }
 }
 
 export default requireAuth(
@@ -108,69 +111,143 @@ export default requireAuth(
       }
 
       // Range do dia local de SP para esse appointment
-      const { dayStartUtc, dayEndUtc } = getSaoPauloDayRangeFromUtc(appointmentDate)
-
-      // Verifica conflitos com bloqueios
-      const blocks = await prisma.providerBlock.findMany({
-        where: {
-          providerId: provider.id,
-          startAt: { lt: dayEndUtc },
-          endAt: { gt: dayStartUtc },
-        },
-      })
+      const { dayStartUtc, dayEndUtc, weekday } = getSaoPauloDayRangeFromUtc(appointmentDate)
 
       const apptStartMin = saoPauloMinutesFromMidnight(appointmentDate)
       const apptEndMin = apptStartMin + service.duration
 
-      const blocked = blocks.some(block => {
-        const blockStartMin = saoPauloMinutesFromMidnight(block.startAt)
-        const blockEndMin = saoPauloMinutesFromMidnight(block.endAt)
-        return intervalsOverlap(apptStartMin, apptEndMin, blockStartMin, blockEndMin)
-      })
-      if (blocked) {
-        return res.status(400).json({ error: 'This time is blocked for the provider' })
+      try {
+        const created = await prisma.$transaction(
+          async tx => {
+            const availabilities = await tx.providerAvailability.findMany({
+              where: { providerId: provider.id, weekday },
+              orderBy: { startTime: 'asc' },
+            })
+
+            const fitsAvailability = availabilities.some(av => {
+              const [startHourStr, startMinStr] = av.startTime.split(':')
+              const [endHourStr, endMinStr] = av.endTime.split(':')
+
+              const windowStartMin = Number(startHourStr) * 60 + Number(startMinStr)
+              const windowEndMin = Number(endHourStr) * 60 + Number(endMinStr)
+
+              if (
+                Number.isNaN(windowStartMin) ||
+                Number.isNaN(windowEndMin) ||
+                windowEndMin <= windowStartMin
+              ) {
+                return false
+              }
+
+              if (apptStartMin < windowStartMin || apptEndMin > windowEndMin) {
+                return false
+              }
+
+              const offset = apptStartMin - windowStartMin
+              return offset % service.duration === 0
+            })
+
+            if (!fitsAvailability) {
+              throw new Error('OUTSIDE_AVAILABILITY')
+            }
+
+            const blocks = await tx.providerBlock.findMany({
+              where: {
+                providerId: provider.id,
+                startAt: { lt: dayEndUtc },
+                endAt: { gt: dayStartUtc },
+              },
+            })
+
+            const blocked = blocks.some(block => {
+              const blockStartMin = saoPauloMinutesFromMidnight(block.startAt)
+              const blockEndMin = saoPauloMinutesFromMidnight(block.endAt)
+              return intervalsOverlap(apptStartMin, apptEndMin, blockStartMin, blockEndMin)
+            })
+            if (blocked) {
+              throw new Error('BLOCKED_SLOT')
+            }
+
+            const existingProviderAppointments = await tx.appointment.findMany({
+              where: {
+                providerId: provider.id,
+                date: { gte: dayStartUtc, lt: dayEndUtc },
+                status: { not: 'CANCELLED' },
+              },
+              include: {
+                service: true,
+              },
+            })
+
+            const providerConflict = existingProviderAppointments.some(appt => {
+              const apptDuration = appt.service?.duration ?? service.duration
+              const existingStartMin = saoPauloMinutesFromMidnight(appt.date)
+              const existingEndMin = existingStartMin + apptDuration
+              return intervalsOverlap(apptStartMin, apptEndMin, existingStartMin, existingEndMin)
+            })
+
+            if (providerConflict) {
+              throw new Error('PROVIDER_CONFLICT')
+            }
+
+            const existingCustomerAppointments = await tx.appointment.findMany({
+              where: {
+                customerId: userId,
+                date: { gte: dayStartUtc, lt: dayEndUtc },
+                status: { not: 'CANCELLED' },
+              },
+              include: {
+                service: true,
+              },
+            })
+
+            const customerConflict = existingCustomerAppointments.some(appt => {
+              const apptDuration = appt.service?.duration ?? service.duration
+              const existingStartMin = saoPauloMinutesFromMidnight(appt.date)
+              const existingEndMin = existingStartMin + apptDuration
+              return intervalsOverlap(apptStartMin, apptEndMin, existingStartMin, existingEndMin)
+            })
+
+            if (customerConflict) {
+              throw new Error('CUSTOMER_CONFLICT')
+            }
+
+            return tx.appointment.create({
+              data: {
+                date: appointmentDate, // guardado em UTC
+                customerId: userId,
+                providerId: provider.id,
+                serviceId: service.id,
+                notes: notes ?? null,
+                status: 'SCHEDULED',
+              },
+              include: {
+                provider: { select: { id: true, name: true, email: true } },
+                service: true,
+              },
+            })
+          },
+          { isolationLevel: 'Serializable' }
+        )
+
+        return res.status(201).json({ appointment: created })
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message === 'OUTSIDE_AVAILABILITY') {
+            return res.status(400).json({ error: 'Horário fora da disponibilidade do provider' })
+          }
+          if (error.message === 'BLOCKED_SLOT') {
+            return res.status(400).json({ error: 'This time is blocked for the provider' })
+          }
+          if (error.message === 'PROVIDER_CONFLICT') {
+            return res.status(400).json({ error: 'Já existe um agendamento nesse horário' })
+          }
+          if (error.message === 'CUSTOMER_CONFLICT') {
+            return res.status(400).json({ error: 'Você já tem um agendamento nesse horário' })
+          }
+        }
+        throw error
       }
-
-      // Verifica conflitos com outros appointments (mesmo provider, mesmo dia)
-      const existingAppointments = await prisma.appointment.findMany({
-        where: {
-          providerId: provider.id,
-          date: { gte: dayStartUtc, lt: dayEndUtc },
-          status: { not: 'CANCELED' },
-        },
-        include: {
-          service: true,
-        },
-      })
-
-      const hasConflict = existingAppointments.some(appt => {
-        const apptDuration = appt.service?.duration ?? service.duration
-        const existingStartMin = saoPauloMinutesFromMidnight(appt.date)
-        const existingEndMin = existingStartMin + apptDuration
-        return intervalsOverlap(apptStartMin, apptEndMin, existingStartMin, existingEndMin)
-      })
-
-      if (hasConflict) {
-        return res.status(400).json({ error: 'Já existe um agendamento nesse horário' })
-      }
-
-      // Cria o agendamento
-      const created = await prisma.appointment.create({
-        data: {
-          date: appointmentDate, // guardado em UTC
-          customerId: userId,
-          providerId: provider.id,
-          serviceId: service.id,
-          notes: notes ?? null,
-          status: 'SCHEDULED',
-        },
-        include: {
-          provider: { select: { id: true, name: true, email: true } },
-          service: true,
-        },
-      })
-
-      return res.status(201).json({ appointment: created })
     }
 
     res.setHeader('Allow', 'GET, POST')
