@@ -8,7 +8,7 @@ export default requireAuth(async (req: NextApiRequest & { user?: { userId: strin
 
   const provider = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, isProvider: true, maxBookingDays: true },
+    select: { id: true, isProvider: true, maxBookingDays: true, cancelBookingHours: true },
   })
 
   if (!provider || !provider.isProvider) {
@@ -16,24 +16,37 @@ export default requireAuth(async (req: NextApiRequest & { user?: { userId: strin
   }
 
   if (req.method === 'GET') {
-    return res.status(200).json({ maxBookingDays: provider.maxBookingDays ?? 7 })
+    return res
+      .status(200)
+      .json({
+        maxBookingDays: provider.maxBookingDays ?? 7,
+        cancelBookingHours: provider.cancelBookingHours ?? 2,
+      })
   }
 
   if (req.method === 'POST') {
-    const { maxBookingDays } = req.body ?? {}
+    const { maxBookingDays, cancelBookingHours } = req.body ?? {}
     const days = Number(maxBookingDays)
+    const cancelHours = Number(cancelBookingHours)
 
     if (Number.isNaN(days) || days < 1 || days > 60) {
       return res.status(400).json({ error: 'maxBookingDays must be between 1 and 60' })
     }
 
+    if (Number.isNaN(cancelHours) || cancelHours < 0 || cancelHours > 72) {
+      return res.status(400).json({ error: 'cancelBookingHours must be between 0 and 72' })
+    }
+
     const updated = await prisma.user.update({
       where: { id: provider.id },
-      data: { maxBookingDays: days },
-      select: { maxBookingDays: true },
+      data: { maxBookingDays: days, cancelBookingHours: cancelHours },
+      select: { maxBookingDays: true, cancelBookingHours: true },
     })
 
-    return res.status(200).json({ maxBookingDays: updated.maxBookingDays })
+    return res.status(200).json({
+      maxBookingDays: updated.maxBookingDays,
+      cancelBookingHours: updated.cancelBookingHours,
+    })
   }
 
   res.setHeader('Allow', 'GET, POST')
