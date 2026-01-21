@@ -1,8 +1,8 @@
 // src/lib/auth.ts
-import jwt from 'jsonwebtoken'
+import jwt, { type Secret, type SignOptions } from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change_me'
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '2h'
+const JWT_SECRET: Secret = process.env.JWT_SECRET || 'change_me'
+const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || '2h') as SignOptions['expiresIn']
 
 export type JwtPayload = { userId: string }
 
