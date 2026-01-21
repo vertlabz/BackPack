@@ -49,6 +49,76 @@ export default function ProviderSettingsPage() {
   const [slotsLoading, setSlotsLoading] = useState(false)
   const [slotsError, setSlotsError] = useState('')
 
+  const styles = {
+    page: {
+      minHeight: '100vh',
+      background: '#0b0d10',
+      color: '#e6e8eb',
+      padding: '40px 20px 60px',
+      fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
+    },
+    container: {
+      maxWidth: 1000,
+      margin: '0 auto',
+      display: 'flex',
+      flexDirection: 'column' as const,
+      gap: 24,
+    },
+    card: {
+      background: '#111418',
+      border: '1px solid #1f242c',
+      borderRadius: 16,
+      padding: 24,
+    },
+    subtitle: { color: '#9aa4b2', fontSize: 14 },
+    helper: { fontSize: 12, color: '#9aa4b2' },
+    field: { display: 'flex', flexDirection: 'column' as const, gap: 8, marginBottom: 12 },
+    label: { fontSize: 13, color: '#b5bcc7' },
+    input: {
+      background: '#0f1216',
+      border: '1px solid #2a2f36',
+      borderRadius: 10,
+      padding: '8px 12px',
+      color: '#e6e8eb',
+      fontSize: 14,
+    },
+    button: {
+      background: '#1c2128',
+      border: '1px solid #2f3742',
+      borderRadius: 10,
+      padding: '10px 14px',
+      color: '#e6e8eb',
+      fontWeight: 600,
+      cursor: 'pointer',
+    },
+    ghostButton: {
+      background: 'transparent',
+      border: '1px solid #2f3742',
+      borderRadius: 10,
+      padding: '6px 10px',
+      color: '#e6e8eb',
+      cursor: 'pointer',
+    },
+    error: { color: '#f87171', fontSize: 13 },
+    success: { color: '#34d399', fontSize: 13 },
+    list: { listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 },
+    listItem: {
+      paddingBottom: 12,
+      borderBottom: '1px solid #222831',
+      fontSize: 14,
+      color: '#cbd3de',
+    },
+    chipRow: { display: 'flex', flexWrap: 'wrap' as const, gap: 8 },
+    chip: {
+      padding: '6px 10px',
+      border: '1px solid #2a2f36',
+      borderRadius: 999,
+      fontSize: 13,
+      color: '#e6e8eb',
+      background: '#0f1216',
+    },
+  }
+
   // Carrega user/token
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -223,134 +293,138 @@ export default function ProviderSettingsPage() {
   }
 
   if (!user || !token) {
-    return <div style={{ padding: 20 }}>Carregando...</div>
+    return (
+      <div style={styles.page}>
+        <div style={styles.container}>
+          <div style={styles.card}>Carregando...</div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: '40px auto', fontFamily: 'sans-serif' }}>
-      <h1>Configurações do Barbeiro</h1>
-      <p>Olá, {user.name}</p>
+    <div style={styles.page}>
+      <div style={styles.container}>
+        <header style={styles.card}>
+          <h1>Configurações do Barbeiro</h1>
+          <p style={styles.subtitle}>Olá, {user.name}</p>
+        </header>
 
       {/* Seção Limite de Agendamento */}
-      <section style={{ marginBottom: 32 }}>
+        <section style={styles.card}>
         <h2>Limite de agendamento</h2>
-        <p style={{ fontSize: 12, color: '#555' }}>
+          <p style={styles.helper}>
           Define quantos dias à frente os clientes podem agendar. Padrão: 7 dias.
         </p>
-        <p style={{ fontSize: 12, color: '#555' }}>
+          <p style={styles.helper}>
           Também define o prazo mínimo de cancelamento para clientes e barbeiro.
         </p>
-        <div>
-          <label>
-            Máximo de dias à frente:{' '}
+          <div style={styles.field}>
+            <label style={styles.label}>Máximo de dias à frente</label>
             <input
               type="number"
               min={1}
               max={60}
               value={maxBookingDays}
               onChange={e => setMaxBookingDays(Number(e.target.value))}
+              style={styles.input}
             />
-          </label>
-        </div>
-        <div style={{ marginTop: 8 }}>
-          <label>
-            Cancelamento permitido até (horas antes):{' '}
-            <input
-              type="number"
-              min={0}
-              max={72}
-              value={cancelBookingHours}
-              onChange={e => setCancelBookingHours(Number(e.target.value))}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={handleSaveBookingLimit}
-            style={{ marginLeft: 8 }}
-          >
-            Salvar
-          </button>
-        </div>
-        {bookingLimitError && <p style={{ color: 'red' }}>{bookingLimitError}</p>}
-        {bookingLimitMessage && <p style={{ color: 'green' }}>{bookingLimitMessage}</p>}
-      </section>
+          </div>
+          <div style={styles.field}>
+            <label style={styles.label}>Cancelamento permitido até (horas antes)</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="number"
+                min={0}
+                max={72}
+                value={cancelBookingHours}
+                onChange={e => setCancelBookingHours(Number(e.target.value))}
+                style={styles.input}
+              />
+              <button type="button" onClick={handleSaveBookingLimit} style={styles.button}>
+                Salvar
+              </button>
+            </div>
+          </div>
+          {bookingLimitError && <p style={styles.error}>{bookingLimitError}</p>}
+          {bookingLimitMessage && <p style={styles.success}>{bookingLimitMessage}</p>}
+        </section>
 
       {/* Seção Serviços */}
-      <section style={{ marginBottom: 32 }}>
+        <section style={styles.card}>
         <h2>Serviços</h2>
-        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
           <h3>Criar novo serviço</h3>
-          <div>
-            <label>
-              Nome:{' '}
+            <div style={styles.field}>
+              <label style={styles.label}>Nome</label>
               <input
                 value={newServiceName}
                 onChange={e => setNewServiceName(e.target.value)}
                 placeholder="Corte simples, Barba, etc."
+                style={styles.input}
               />
-            </label>
-          </div>
-          <div>
-            <label>
-              Duração (min):{' '}
+            </div>
+            <div style={styles.field}>
+              <label style={styles.label}>Duração (min)</label>
               <input
                 type="number"
                 value={newServiceDuration}
                 onChange={e => setNewServiceDuration(Number(e.target.value))}
                 min={5}
+                style={styles.input}
               />
-            </label>
-          </div>
-          <div>
-            <label>
-              Preço (R$):{' '}
+            </div>
+            <div style={styles.field}>
+              <label style={styles.label}>Preço (R$)</label>
               <input
                 type="number"
                 step="0.01"
                 value={newServicePrice}
                 onChange={e => setNewServicePrice(Number(e.target.value))}
                 min={0}
+                style={styles.input}
               />
-            </label>
+            </div>
+            <button type="button" onClick={handleCreateService} style={styles.button}>
+              Salvar serviço
+            </button>
+            {servicesError && <p style={styles.error}>{servicesError}</p>}
+            {serviceMessage && <p style={styles.success}>{serviceMessage}</p>}
           </div>
-          <button type="button" onClick={handleCreateService}>
-            Salvar serviço
-          </button>
-          {servicesError && <p style={{ color: 'red' }}>{servicesError}</p>}
-          {serviceMessage && <p style={{ color: 'green' }}>{serviceMessage}</p>}
-        </div>
 
-        <div>
-          <h3>Meus serviços</h3>
-          {servicesLoading && <p>Carregando serviços...</p>}
-          {!servicesLoading && services.length === 0 && <p>Nenhum serviço cadastrado ainda.</p>}
-          <ul>
-            {services.map(s => (
-              <li key={s.id} style={{ marginBottom: 4 }}>
-                {s.name} — {s.duration} min — R$ {s.price.toFixed(2)}{' '}
-                <button type="button" onClick={() => handleDeleteService(s.id)}>
-                  remover
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
+          <div>
+            <h3>Meus serviços</h3>
+            {servicesLoading && <p style={styles.subtitle}>Carregando serviços...</p>}
+            {!servicesLoading && services.length === 0 && (
+              <p style={styles.subtitle}>Nenhum serviço cadastrado ainda.</p>
+            )}
+            <ul style={styles.list}>
+              {services.map(s => (
+                <li key={s.id} style={styles.listItem}>
+                  {s.name} — {s.duration} min — R$ {s.price.toFixed(2)}{' '}
+                  <button type="button" onClick={() => handleDeleteService(s.id)} style={styles.ghostButton}>
+                    remover
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
 
       {/* Seção Preview de Slots */}
-      <section>
+        <section style={styles.card}>
         <h2>Preview de horários disponíveis</h2>
-        <p style={{ fontSize: 12, color: '#555' }}>
+          <p style={styles.helper}>
           Os horários abaixo são calculados usando suas disponibilidades, bloqueios e a duração do serviço selecionado.
         </p>
 
-        <div style={{ marginBottom: 16 }}>
-          <div>
-            <label>
-              Serviço:{' '}
+          <div style={{ marginBottom: 16 }}>
+            <div style={styles.field}>
+              <label style={styles.label}>Serviço</label>
               <select
                 value={selectedServiceId}
                 onChange={e => setSelectedServiceId(e.target.value)}
+                style={styles.input}
               >
                 <option value="">Selecione...</option>
                 {services.map(s => (
@@ -359,49 +433,40 @@ export default function ProviderSettingsPage() {
                   </option>
                 ))}
               </select>
-            </label>
-          </div>
-          <div>
-            <label>
-              Data:{' '}
+            </div>
+            <div style={styles.field}>
+              <label style={styles.label}>Data</label>
               <input
                 type="date"
                 value={date}
                 onChange={e => setDate(e.target.value)}
+                style={styles.input}
               />
-            </label>
+            </div>
+            <button type="button" onClick={loadSlots} disabled={slotsLoading} style={styles.button}>
+              {slotsLoading ? 'Carregando...' : 'Ver slots'}
+            </button>
+            {slotsError && <p style={styles.error}>{slotsError}</p>}
           </div>
-          <button type="button" onClick={loadSlots} disabled={slotsLoading}>
-            {slotsLoading ? 'Carregando...' : 'Ver slots'}
-          </button>
-          {slotsError && <p style={{ color: 'red' }}>{slotsError}</p>}
-        </div>
 
-        <div>
-          <h3>Slots para este dia</h3>
-          {slotsLoading && <p>Buscando horários...</p>}
-          {!slotsLoading && slots.length === 0 && <p>Nenhum slot disponível.</p>}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {slots.map(slot => {
-              const dateObj = new Date(slot)
-              const label = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              return (
-                <span
-                  key={slot}
-                  style={{
-                    padding: '6px 10px',
-                    border: '1px solid #ccc',
-                    borderRadius: 4,
-                    fontSize: 14,
-                  }}
-                >
-                  {label}
-                </span>
-              )
-            })}
+          <div>
+            <h3>Slots para este dia</h3>
+            {slotsLoading && <p style={styles.subtitle}>Buscando horários...</p>}
+            {!slotsLoading && slots.length === 0 && <p style={styles.subtitle}>Nenhum slot disponível.</p>}
+            <div style={styles.chipRow}>
+              {slots.map(slot => {
+                const dateObj = new Date(slot)
+                const label = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                return (
+                  <span key={slot} style={styles.chip}>
+                    {label}
+                  </span>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   )
 }

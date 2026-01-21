@@ -61,6 +61,76 @@ export default function DashboardPage() {
   const [bookingError, setBookingError] = useState('')
   const [bookingLoading, setBookingLoading] = useState(false)
 
+  const styles = {
+    page: {
+      minHeight: '100vh',
+      background: '#0b0d10',
+      color: '#e6e8eb',
+      padding: '40px 20px 60px',
+      fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
+    },
+    container: {
+      maxWidth: 960,
+      margin: '0 auto',
+      display: 'flex',
+      flexDirection: 'column' as const,
+      gap: 24,
+    },
+    header: { display: 'flex', flexDirection: 'column' as const, gap: 8 },
+    subtitle: { color: '#9aa4b2', fontSize: 14, margin: 0 },
+    link: { color: '#7aa2ff', textDecoration: 'none' },
+    card: {
+      background: '#111418',
+      border: '1px solid #1f242c',
+      borderRadius: 16,
+      padding: 24,
+    },
+    fieldRow: { display: 'flex', flexWrap: 'wrap' as const, gap: 12, alignItems: 'center' },
+    label: { fontSize: 13, color: '#b5bcc7' },
+    input: {
+      background: '#0f1216',
+      border: '1px solid #2a2f36',
+      borderRadius: 10,
+      padding: '8px 12px',
+      color: '#e6e8eb',
+      fontSize: 14,
+    },
+    button: {
+      background: '#1c2128',
+      border: '1px solid #2f3742',
+      borderRadius: 10,
+      padding: '10px 14px',
+      color: '#e6e8eb',
+      fontWeight: 600,
+      cursor: 'pointer',
+    },
+    ghostButton: {
+      background: 'transparent',
+      border: '1px solid #2f3742',
+      borderRadius: 10,
+      padding: '8px 12px',
+      color: '#e6e8eb',
+      cursor: 'pointer',
+    },
+    error: { color: '#f87171', fontSize: 13 },
+    success: { color: '#34d399', fontSize: 13 },
+    list: { listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 },
+    listItem: {
+      paddingBottom: 12,
+      borderBottom: '1px solid #222831',
+      fontSize: 14,
+      color: '#cbd3de',
+    },
+    chipRow: { display: 'flex', flexWrap: 'wrap' as const, gap: 8, marginTop: 12 },
+    chip: {
+      border: '1px solid #2a2f36',
+      borderRadius: 999,
+      padding: '6px 12px',
+      background: '#0f1216',
+      color: '#e6e8eb',
+    },
+  }
+
   useEffect(() => {
     if (typeof window === 'undefined') return
 
@@ -178,113 +248,133 @@ export default function DashboardPage() {
     }
   }
 
-  if (!user) return <div style={{ padding: 20 }}>Redirecionando...</div>
+  if (!user) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.container}>
+          <div style={styles.card}>Redirecionando...</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div style={{ maxWidth: 800, margin: '40px auto', fontFamily: 'sans-serif' }}>
-      <h1>Olá, {user.name}</h1>
+    <div style={styles.page}>
+      <div style={styles.container}>
+        <header style={styles.header}>
+          <h1>Olá, {user.name}</h1>
+          <p style={styles.subtitle}>Gerencie seus agendamentos e horários em um só lugar.</p>
+          {user.isProvider && (
+            <p style={styles.subtitle}>
+              Você é barbeiro —{' '}
+              <a href="/provider/dashboard" style={styles.link}>
+                Ir para painel
+              </a>
+            </p>
+          )}
+        </header>
 
-      {user.isProvider && (
-        <p>
-          Você é barbeiro — <a href="/provider/dashboard">Ir para painel</a>
-        </p>
-      )}
+        <section style={styles.card}>
+          <h2>Agendar horário</h2>
 
-      <section style={{ marginBottom: 32 }}>
-        <h2>Agendar horário</h2>
+          {providerLoading && <p style={styles.subtitle}>Carregando barbeiro...</p>}
+          {providerError && <p style={styles.error}>{providerError}</p>}
 
-        {providerLoading && <p>Carregando barbeiro...</p>}
-        {providerError && <p style={{ color: 'red' }}>{providerError}</p>}
+          {provider && (
+            <>
+              <p style={styles.subtitle}>
+                <strong>Barbeiro:</strong> {provider.name}
+              </p>
 
-        {provider && (
-          <>
-            <p><strong>Barbeiro:</strong> {provider.name}</p>
+              <div style={styles.fieldRow}>
+                <label style={styles.label}>
+                  Serviço
+                  <select
+                    value={selectedServiceId}
+                    onChange={e => setSelectedServiceId(e.target.value)}
+                    style={{ ...styles.input, marginLeft: 8 }}
+                  >
+                    <option value="">Selecione...</option>
+                    {provider.services.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} — {s.duration} min — R$ {s.price.toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <label>
-              Serviço:{' '}
-              <select
-                value={selectedServiceId}
-                onChange={e => setSelectedServiceId(e.target.value)}
-              >
-                <option value="">Selecione...</option>
-                {provider.services.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} — {s.duration} min — R$ {s.price.toFixed(2)}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <label style={styles.label}>
+                  Data
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={e => setDate(e.target.value)}
+                    style={{ ...styles.input, marginLeft: 8 }}
+                  />
+                </label>
+              </div>
 
-            <br /><br />
+              <div style={{ marginTop: 12 }}>
+                <button onClick={loadSlots} disabled={slotsLoading} style={styles.button}>
+                  {slotsLoading ? 'Carregando...' : 'Ver horários'}
+                </button>
+              </div>
 
-            <label>
-              Data:{' '}
-              <input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-              />
-            </label>
+              {slotsError && <p style={styles.error}>{slotsError}</p>}
 
-            <br /><br />
+              {slots.length > 0 && (
+                <>
+                  <h3>Disponíveis</h3>
+                  <div style={styles.chipRow}>
+                    {slots.map(slot => {
+                      const d = new Date(slot)
+                      return (
+                        <button
+                          key={slot}
+                          onClick={() => book(slot)}
+                          disabled={bookingLoading}
+                          style={styles.ghostButton}
+                        >
+                          {d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
 
-            <button onClick={loadSlots} disabled={slotsLoading}>
-              {slotsLoading ? 'Carregando...' : 'Ver horários'}
-            </button>
+              {bookingError && <p style={styles.error}>{bookingError}</p>}
+              {bookingMessage && <p style={styles.success}>{bookingMessage}</p>}
+            </>
+          )}
+        </section>
 
-            {slotsError && <p style={{ color: 'red' }}>{slotsError}</p>}
+        <section style={styles.card}>
+          <h2>Meus agendamentos</h2>
 
-            {slots.length > 0 && (
-              <>
-                <h3>Disponíveis</h3>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {slots.map(slot => {
-                    const d = new Date(slot)
-                    return (
-                      <button
-                        key={slot}
-                        onClick={() => book(slot)}
-                        disabled={bookingLoading}
-                        style={{ padding: '6px 10px' }}
-                      >
-                        {d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            )}
+          {loading && <p style={styles.subtitle}>Carregando...</p>}
+          {error && <p style={styles.error}>{error}</p>}
+          {!loading && appointments.length === 0 && (
+            <p style={styles.subtitle}>Sem agendamentos ainda.</p>
+          )}
 
-            {bookingError && <p style={{ color: 'red' }}>{bookingError}</p>}
-            {bookingMessage && <p style={{ color: 'green' }}>{bookingMessage}</p>}
-          </>
-        )}
-      </section>
-
-      <section>
-        <h2>Meus agendamentos</h2>
-
-        {loading && <p>Carregando...</p>}
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        {!loading && appointments.length === 0 && <p>Sem agendamentos ainda.</p>}
-
-        <ul>
-          {appointments.map(a => {
-            const date = new Date(a.date)
-            return (
-              <li key={a.id} style={{ marginBottom: 10, borderBottom: '1px solid #ccc', paddingBottom: 8 }}>
-                <strong>{date.toLocaleString()}</strong>
-                <br />
-                {a.service?.name} — {a.service?.duration} min
-                <br />
-                Barbeiro: {a.provider?.name}
-                <br />
-                Status: {a.status}
-              </li>
-            )
-          })}
-        </ul>
-      </section>
+          <ul style={styles.list}>
+            {appointments.map(a => {
+              const date = new Date(a.date)
+              return (
+                <li key={a.id} style={styles.listItem}>
+                  <strong style={{ color: '#e6e8eb' }}>{date.toLocaleString()}</strong>
+                  <div>
+                    {a.service?.name} — {a.service?.duration} min
+                  </div>
+                  <div>Barbeiro: {a.provider?.name}</div>
+                  <div>Status: {a.status}</div>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      </div>
     </div>
   )
 }
