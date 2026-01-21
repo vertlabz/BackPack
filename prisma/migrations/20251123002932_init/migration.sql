@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "AppointmentStatus" AS ENUM ('SCHEDULED', 'COMPLETED', 'CANCELLED', 'MISSED');
+CREATE TYPE "AppointmentStatus" AS ENUM ('SCHEDULED', 'CANCELED', 'DONE');
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -8,6 +8,8 @@ CREATE TABLE "User" (
     "email" TEXT NOT NULL,
     "password" TEXT NOT NULL,
     "isProvider" BOOLEAN NOT NULL DEFAULT false,
+    "maxBookingDays" INTEGER NOT NULL DEFAULT 7,
+    "cancelBookingHours" INTEGER NOT NULL DEFAULT 2,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
