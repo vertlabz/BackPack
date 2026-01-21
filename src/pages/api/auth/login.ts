@@ -28,7 +28,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
     const cleanEmail = String(email).trim().toLowerCase()
 
-    const user = await prisma.user.findUnique({ where: { email: cleanEmail } })
+    const user = await prisma.user.findUnique({
+      where: { email: cleanEmail },
+      select: { id: true, name: true, email: true, password: true, isProvider: true, maxBookingDays: true },
+    })
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' })
     }

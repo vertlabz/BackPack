@@ -5,7 +5,8 @@
 
 */
 -- AlterTable
-ALTER TABLE "User" ADD COLUMN     "maxBookingDays" INTEGER NOT NULL DEFAULT 7;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "maxBookingDays" INTEGER NOT NULL DEFAULT 7;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "cancelBookingHours" INTEGER NOT NULL DEFAULT 2;
 
 -- CreateIndex
 CREATE INDEX "Appointment_providerId_date_idx" ON "Appointment"("providerId", "date");
