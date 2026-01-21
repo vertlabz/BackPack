@@ -23,6 +23,7 @@ export default function ProviderSettingsPage() {
 
   // Limite de agendamento (maxBookingDays)
   const [maxBookingDays, setMaxBookingDays] = useState<number>(7)
+  const [cancelBookingHours, setCancelBookingHours] = useState<number>(2)
   const [bookingLimitMessage, setBookingLimitMessage] = useState('')
   const [bookingLimitError, setBookingLimitError] = useState('')
 
@@ -112,6 +113,7 @@ export default function ProviderSettingsPage() {
           setBookingLimitError(data.error || data.message || 'Erro ao carregar configuração')
         } else {
           setMaxBookingDays(data.maxBookingDays ?? 7)
+          setCancelBookingHours(data.cancelBookingHours ?? 2)
         }
       } catch {
         setBookingLimitError('Erro de rede ao carregar configuração')
@@ -132,7 +134,7 @@ export default function ProviderSettingsPage() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ maxBookingDays }),
+      body: JSON.stringify({ maxBookingDays, cancelBookingHours }),
     })
 
     const data = await res.json()
@@ -141,7 +143,7 @@ export default function ProviderSettingsPage() {
       return
     }
 
-    setBookingLimitMessage('Limite de agendamento atualizado!')
+    setBookingLimitMessage('Configurações atualizadas!')
   }
 
   async function handleCreateService() {
@@ -235,6 +237,9 @@ export default function ProviderSettingsPage() {
         <p style={{ fontSize: 12, color: '#555' }}>
           Define quantos dias à frente os clientes podem agendar. Padrão: 7 dias.
         </p>
+        <p style={{ fontSize: 12, color: '#555' }}>
+          Também define o prazo mínimo de cancelamento para clientes e barbeiro.
+        </p>
         <div>
           <label>
             Máximo de dias à frente:{' '}
@@ -244,6 +249,18 @@ export default function ProviderSettingsPage() {
               max={60}
               value={maxBookingDays}
               onChange={e => setMaxBookingDays(Number(e.target.value))}
+            />
+          </label>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <label>
+            Cancelamento permitido até (horas antes):{' '}
+            <input
+              type="number"
+              min={0}
+              max={72}
+              value={cancelBookingHours}
+              onChange={e => setCancelBookingHours(Number(e.target.value))}
             />
           </label>
           <button

@@ -14,6 +14,11 @@ export default requireAuth(async (req: NextApiRequest & { user?: { userId: strin
 
   const appointment = await prisma.appointment.findUnique({
     where: { id: String(id) },
+    include: {
+      provider: {
+        select: { cancelBookingHours: true },
+      },
+    },
   })
 
   if (!appointment) {
@@ -24,9 +29,28 @@ export default requireAuth(async (req: NextApiRequest & { user?: { userId: strin
     return res.status(403).json({ error: 'Not allowed to cancel this appointment' })
   }
 
+  if (appointment.status === 'CANCELED') {
+    return res.status(200).json({ appointment })
+  }
+
+  if (appointment.status === 'DONE') {
+    return res.status(400).json({ error: 'Cannot cancel a completed appointment' })
+  }
+
+  const cancelLimitHours = appointment.provider?.cancelBookingHours ?? 2
+  const now = new Date()
+  const diffMs = appointment.date.getTime() - now.getTime()
+  const diffHours = diffMs / (60 * 60 * 1000)
+
+  if (diffHours < cancelLimitHours) {
+    return res.status(400).json({
+      error: `Cancellation must be at least ${cancelLimitHours} hours before the appointment`,
+    })
+  }
+
   const updated = await prisma.appointment.update({
     where: { id: String(id) },
-    data: { status: 'CANCELLED' },
+    data: { status: 'CANCELED' },
   })
 
   return res.status(200).json({ appointment: updated })

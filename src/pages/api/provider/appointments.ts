@@ -37,7 +37,7 @@ export default requireAuth(async (req: NextApiRequest & { user?: { userId: strin
     where: {
       providerId: user.id,
       date: { gte: start, lt: end },
-      status: { not: 'CANCELLED' },
+      status: { not: 'CANCELED' },
     },
     include: {
       customer: { select: { id: true, name: true, email: true } },

@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     where: {
       providerId: String(providerId),
       date: { gte: start, lt: end },
-      status: { not: 'CANCELLED' },
+      status: { not: 'CANCELED' },
     },
     include: {
       customer: {

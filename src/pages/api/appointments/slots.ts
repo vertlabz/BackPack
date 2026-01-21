@@ -130,7 +130,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     where: {
       providerId: provider.id,
       date: { gte: dayStartUtc, lt: dayEndUtc },
-      status: { not: 'CANCELLED' },
+      status: { not: 'CANCELED' },
     },
     include: {
       service: true,
