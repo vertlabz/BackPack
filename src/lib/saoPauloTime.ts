@@ -18,18 +18,23 @@ export function saoPauloDiffInDaysFromNow(targetUtc: Date): number {
   return dayTarget - dayNow
 }
 
-export function getSaoPauloDayRangeFromUtc(dateUtc: Date): { dayStartUtc: Date; dayEndUtc: Date } {
+export function getSaoPauloDayRangeFromUtc(dateUtc: Date): {
+  dayStartUtc: Date
+  dayEndUtc: Date
+  weekday: number
+} {
   const localMs = dateUtc.getTime() - OFFSET_MS
   const d = new Date(localMs)
   const year = d.getUTCFullYear()
   const month = d.getUTCMonth()
   const day = d.getUTCDate()
+  const weekday = d.getUTCDay()
 
   const localStartMs = Date.UTC(year, month, day, 0, 0, 0)
   const dayStartUtc = new Date(localStartMs + OFFSET_MS)
   const dayEndUtc = new Date(dayStartUtc.getTime() + 24 * 60 * 60 * 1000)
 
-  return { dayStartUtc, dayEndUtc }
+  return { dayStartUtc, dayEndUtc, weekday }
 }
 
 export function getSaoPauloDayRangeFromLocalDate(dateStr: string): {

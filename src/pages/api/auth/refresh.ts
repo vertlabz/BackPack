@@ -2,8 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { prisma } from '../../../lib/prisma'
 import { signAccessToken } from '../../../lib/auth'
-import { setRefreshTokenCookie, clearRefreshTokenCookie } from '../../../lib/cookies'
-import cookie from 'cookie'
+import { setRefreshTokenCookie, clearRefreshTokenCookie, parseCookieHeader } from '../../../lib/cookies'
 import crypto from 'crypto'
 
 const REFRESH_EXPIRES_DAYS = Number(process.env.JWT_REFRESH_EXPIRES_DAYS || 30)
@@ -11,7 +10,7 @@ const REFRESH_EXPIRES_DAYS = Number(process.env.JWT_REFRESH_EXPIRES_DAYS || 30)
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const cookies = cookie.parse(req.headers.cookie || '')
+  const cookies = parseCookieHeader(req.headers.cookie)
   const cookieName = process.env.REFRESH_TOKEN_COOKIE_NAME || 'rtk'
   const tokenFromCookie = cookies[cookieName]
   if (!tokenFromCookie) return res.status(401).json({ error: 'No refresh token' })

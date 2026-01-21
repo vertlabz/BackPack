@@ -222,12 +222,13 @@ export default function ProviderDashboard() {
   // Services do provider (pra ver durations)
   useEffect(() => {
     if (!token || !user) return
+    const userId = user.id
 
     async function loadServices() {
       setServicesLoading(true)
       setServicesError('')
       try {
-        const res = await fetch(`/api/providers/${user.id}`)
+        const res = await fetch(`/api/providers/${userId}`)
         const data = await res.json()
         if (!res.ok) {
           setServicesError(data.error || data.message || 'Erro ao carregar serviços')
