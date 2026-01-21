@@ -1,6 +1,7 @@
 // src/pages/api/provider/appointments.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { prisma } from '../../../lib/prisma'
+import { AppointmentStatus } from '@prisma/client'
 import { getSaoPauloDayRangeFromLocalDate } from '../../../lib/saoPauloTime'
 import { requireAuth } from '../../../middleware/requireAuth'
 
@@ -40,7 +41,7 @@ export default requireAuth(async (req: NextApiRequest & { user?: { userId: strin
     where: {
       providerId: user.id,
       date: { gte: start, lt: end },
-      status: { not: 'CANCELED' },
+      status: { not: AppointmentStatus.CANCELED },
     },
     include: {
       customer: { select: { id: true, name: true, email: true } },

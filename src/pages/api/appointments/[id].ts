@@ -1,6 +1,7 @@
 // src/pages/api/appointments/[id].ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { prisma } from '../../../lib/prisma'
+import { AppointmentStatus } from '@prisma/client'
 import { requireAuth } from '../../../middleware/requireAuth'
 
 export default requireAuth(async (req: NextApiRequest & { user?: { userId: string } }, res: NextApiResponse) => {
@@ -29,11 +30,11 @@ export default requireAuth(async (req: NextApiRequest & { user?: { userId: strin
     return res.status(403).json({ error: 'Not allowed to cancel this appointment' })
   }
 
-  if (appointment.status === 'CANCELED') {
+  if (appointment.status === AppointmentStatus.CANCELED) {
     return res.status(200).json({ appointment })
   }
 
-  if (appointment.status === 'DONE') {
+  if (appointment.status === AppointmentStatus.DONE) {
     return res.status(400).json({ error: 'Cannot cancel a completed appointment' })
   }
 
@@ -50,7 +51,7 @@ export default requireAuth(async (req: NextApiRequest & { user?: { userId: strin
 
   const updated = await prisma.appointment.update({
     where: { id: String(id) },
-    data: { status: 'CANCELED' },
+    data: { status: AppointmentStatus.CANCELED },
   })
 
   return res.status(200).json({ appointment: updated })

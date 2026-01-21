@@ -1,6 +1,7 @@
 // src/pages/api/appointments/slots.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { prisma } from '../../../lib/prisma'
+import { AppointmentStatus } from '@prisma/client'
 import {
   getSaoPauloDayRangeFromLocalDate,
   saoPauloMinutesFromMidnight,
@@ -96,7 +97,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     where: {
       providerId: provider.id,
       date: { gte: dayStartUtc, lt: dayEndUtc },
-      status: { not: 'CANCELED' },
+      status: { not: AppointmentStatus.CANCELED },
     },
     include: {
       service: true,

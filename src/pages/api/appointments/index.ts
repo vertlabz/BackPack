@@ -1,6 +1,7 @@
 // src/pages/api/appointments/index.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { prisma } from '../../../lib/prisma'
+import { AppointmentStatus } from '@prisma/client'
 import {
   getSaoPauloDayRangeFromUtc,
   saoPauloDiffInDaysFromNow,
@@ -139,7 +140,7 @@ export default requireAuth(
               where: {
                 providerId: provider.id,
                 date: { gte: dayStartUtc, lt: dayEndUtc },
-                status: { not: 'CANCELED' },
+                status: { not: AppointmentStatus.CANCELED },
               },
               include: {
                 service: true,
@@ -161,7 +162,7 @@ export default requireAuth(
               where: {
                 customerId: userId,
                 date: { gte: dayStartUtc, lt: dayEndUtc },
-                status: { not: 'CANCELED' },
+                status: { not: AppointmentStatus.CANCELED },
               },
               include: {
                 service: true,
@@ -186,7 +187,7 @@ export default requireAuth(
                 providerId: provider.id,
                 serviceId: service.id,
                 notes: notes ?? null,
-                status: 'SCHEDULED',
+                status: AppointmentStatus.SCHEDULED,
               },
               include: {
                 provider: { select: { id: true, name: true, email: true } },
