@@ -3,12 +3,16 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { prisma } from '../../../lib/prisma'
 import { verifyPassword } from '../../../lib/hash'
 import { signAccessToken } from '../../../lib/auth'
+import { setRefreshTokenCookie } from '../../../lib/cookies'
+import crypto from 'crypto'
 
 type UserSafe = { id: string; name: string; email: string; isProvider: boolean }
 
 type ResponseBody =
   | { message: string }
   | { accessToken: string; user: UserSafe }
+
+const REFRESH_EXPIRES_DAYS = Number(process.env.JWT_REFRESH_EXPIRES_DAYS || 30)
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse<ResponseBody>) {
   if (req.method !== 'POST') {
@@ -35,6 +39,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     }
 
     const accessToken = signAccessToken({ userId: user.id })
+    const refreshToken = crypto.randomBytes(48).toString('hex')
+    const expiresAt = new Date(Date.now() + REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000)
+
+    await prisma.token.create({
+      data: {
+        userId: user.id,
+        type: 'REFRESH',
+        token: refreshToken,
+        expiresAt,
+        used: false,
+      },
+    })
+
+    setRefreshTokenCookie(res, refreshToken, REFRESH_EXPIRES_DAYS * 24 * 60 * 60)
 
     const safeUser: UserSafe = {
       id: user.id,

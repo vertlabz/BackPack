@@ -1,48 +1,18 @@
 // src/pages/api/appointments/index.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { prisma } from '../../../lib/prisma'
+import {
+  getSaoPauloDayRangeFromUtc,
+  saoPauloDiffInDaysFromNow,
+  saoPauloMinutesFromMidnight,
+} from '../../../lib/saoPauloTime'
 import { requireAuth } from '../../../middleware/requireAuth'
-
-const SAO_PAULO_OFFSET_MINUTES = 3 * 60
-const OFFSET_MS = SAO_PAULO_OFFSET_MINUTES * 60 * 1000
 
 function intervalsOverlap(startA: number, endA: number, startB: number, endB: number): boolean {
   return startA < endB && endA > startB
 }
 
-// Converte um Date em UTC para "minutos desde meia-noite" em horário de São Paulo
-function saoPauloMinutesFromMidnight(dateUtc: Date): number {
-  const localMs = dateUtc.getTime() - OFFSET_MS
-  const d = new Date(localMs)
-  return d.getUTCHours() * 60 + d.getUTCMinutes()
-}
-
-// Diferença em dias (inteiro) entre hoje e a data-alvo, em horário de SP
-function saoPauloDiffInDaysFromNow(targetUtc: Date): number {
-  const nowUtc = new Date()
-  const localNowMs = nowUtc.getTime() - OFFSET_MS
-  const localTargetMs = targetUtc.getTime() - OFFSET_MS
-
-  const dayNow = Math.floor(localNowMs / (24 * 60 * 60 * 1000))
-  const dayTarget = Math.floor(localTargetMs / (24 * 60 * 60 * 1000))
-
-  return dayTarget - dayNow
-}
-
-// Retorna o range [startUtc, endUtc) do dia de São Paulo correspondente a uma data UTC
-function getSaoPauloDayRangeFromUtc(dateUtc: Date): { dayStartUtc: Date; dayEndUtc: Date } {
-  const localMs = dateUtc.getTime() - OFFSET_MS
-  const d = new Date(localMs)
-  const year = d.getUTCFullYear()
-  const month = d.getUTCMonth()
-  const day = d.getUTCDate()
-
-  const localStartMs = Date.UTC(year, month, day, 0, 0, 0)
-  const dayStartUtc = new Date(localStartMs + OFFSET_MS)
-  const dayEndUtc = new Date(dayStartUtc.getTime() + 24 * 60 * 60 * 1000)
-
-  return { dayStartUtc, dayEndUtc }
-}
+// helpers moved to src/lib/saoPauloTime.ts
 
 export default requireAuth(
   async (req: NextApiRequest & { user?: { userId: string } }, res: NextApiResponse) => {

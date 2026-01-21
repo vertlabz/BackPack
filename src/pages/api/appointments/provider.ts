@@ -1,6 +1,7 @@
 // src/pages/api/appointments/provider.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { prisma } from '../../../lib/prisma'
+import { getSaoPauloDayRangeFromLocalDate } from '../../../lib/saoPauloTime'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -13,15 +14,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'providerId and date are required' })
   }
 
-  const day = new Date(String(date))
-  if (Number.isNaN(day.getTime())) {
-    return res.status(400).json({ error: 'Invalid date' })
+  let start: Date
+  let end: Date
+  try {
+    const range = getSaoPauloDayRangeFromLocalDate(String(date))
+    start = range.dayStartUtc
+    end = range.dayEndUtc
+  } catch {
+    return res.status(400).json({ error: 'Invalid date format (expected YYYY-MM-DD)' })
   }
-
-  const start = new Date(day)
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(start)
-  end.setDate(end.getDate() + 1)
 
   const appointments = await prisma.appointment.findMany({
     where: {
